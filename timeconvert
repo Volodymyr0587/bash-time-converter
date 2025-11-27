@@ -1,0 +1,58 @@
+#!/bin/bash
+
+# --------------------------------------
+# timeconvert: Convert seconds <-> H:M:S
+# Usage examples (interactive):
+#   Enter value: 3661       → 01:01:01
+#   Enter value: 01:01:01   → 3661
+# --------------------------------------
+
+# Ask user for input
+read -p "Enter seconds OR H:M:S: " input
+
+# Error: empty input
+if [ -z "$input" ]; then
+    echo "Error: no input provided"
+    exit 1
+fi
+
+# Function: Seconds → H:M:S
+sec_to_hms() {
+    local sec=$1
+    if ! [[ "$sec" =~ ^[0-9]+$ ]]; then
+        echo "Error: seconds must be a number"
+        exit 1
+    fi
+
+    local h=$(( sec / 3600 ))
+    local m=$(( (sec % 3600) / 60 ))
+    local s=$(( sec % 60 ))
+
+    printf "%02d:%02d:%02d\n" "$h" "$m" "$s"
+}
+
+# Function: H:M:S → Seconds
+hms_to_sec() {
+    local h m s
+    IFS=':' read -r h m s <<< "$1"
+
+    # Validate format
+    if ! [[ "$h" =~ ^[0-9]+$ && "$m" =~ ^[0-5]?[0-9]$ && "$s" =~ ^[0-5]?[0-9]$ ]]; then
+        echo "Error: format must be H:M:S (e.g., 01:23:45)"
+        exit 1
+    fi
+
+    echo $(( h*3600 + m*60 + s ))
+}
+
+# Decide which conversion to use
+if [[ "$input" =~ ^[0-9]+$ ]]; then
+    sec_to_hms "$input"
+elif [[ "$input" =~ ^[0-9]+:[0-9]+:[0-9]+$ ]]; then
+    hms_to_sec "$input"
+else
+    echo "Error: invalid input. Use either:"
+    echo "  - seconds: 3661"
+    echo "  - H:M:S:   01:01:01"
+    exit 1
+fi
