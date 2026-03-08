@@ -25,49 +25,49 @@ It includes **input validation**, **interactive mode**, and supports installatio
 - Can be installed globally using /usr/local/bin/
 
 ## 📦 Installation
+
 1. Clone the repository
-```git clone https://github.com/<your-username>/timeconvert.git```
-```cd timeconvert```
+   `git clone https://github.com/Volodymyr0587/bash-time-converter.git`
+
+    `cd timeconvert`
 
 2. Make the script executable
-```chmod +x timeconvert```
+   `chmod +x timeconvert`
 
 3. (Optional) Install system-wide
 
 To use timeconvert from anywhere on your system:
 
-```sudo mv timeconvert /usr/local/bin/```
-
+`sudo mv timeconvert /usr/local/bin/`
 
 Now you can run it globally:
 
-```timeconvert```
+`timeconvert`
 
 ## 🕹 Usage
 
 Just run:
 
-```./timeconvert```
-
+`./timeconvert`
 
 or (if installed globally):
 
-```timeconvert```
-
+`timeconvert`
 
 You will be prompted:
 
-```Enter seconds OR H:M:S:```
+`Enter seconds OR H:M:S:`
 
 ✔ Example 1: Convert seconds → H:M:S
-```Enter seconds OR H:M:S: 3661```
-```01:01:01```
+`Enter seconds OR H:M:S: 3661`
+`01:01:01`
 
 ✔ Example 2: Convert H:M:S → seconds
-```Enter seconds OR H:M:S: 01:30:45```
-```5445```
+`Enter seconds OR H:M:S: 01:30:45`
+`5445`
 
 ## 🔍 Input rules
+
 **Valid seconds format:**
 `12345`
 
