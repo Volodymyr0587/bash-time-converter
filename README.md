@@ -1,113 +1,309 @@
-# 📘 timeconvert — Convert Seconds ↔ H:M:S in Bash
+# ⏱️ timeconvert
 
-`timeconvert` is a simple and powerful Bash utility that converts:
+A lightweight Bash utility for converting between seconds and human-readable time formats.
 
-    - Seconds → Hours:Minutes:Seconds (H:M:S)
-
-    - Hours:Minutes:Seconds (H:M:S) → Seconds
-
-It includes **input validation**, **interactive mode**, and supports installation as a **system-wide command**.
+`timeconvert` automatically detects the input format and converts it to the appropriate output. It also supports custom output formats, including clock notation and human-readable durations.
 
 ## ✨ Features
 
-- Convert seconds → H:M:S
-
-- Convert H:M:S → seconds
-
-- Automatic format detection
-
-- Interactive input (no arguments needed)
-
-- Error checking for invalid formats
-
-- Works on any Linux system with Bash
-
-- Can be installed globally using /usr/local/bin/
+- Convert seconds to `HH:MM:SS`
+- Convert `H:M:S` to seconds
+- Convert `M:S` to seconds
+- Parse human-readable durations (`1d 2h 30m`)
+- Support for days, hours, minutes, and seconds
+- Automatic input format detection
+- Three output formats: `clock`, `human`, and `short`
+- Input validation and error handling
+- Protection against arithmetic overflow
+- Short and long CLI options
+- Can be installed system-wide
 
 ## 📦 Installation
 
-1. Clone the repository
-   `git clone https://github.com/Volodymyr0587/bash-time-converter.git`
+### 1. Clone the repository
 
-    `cd timeconvert`
+```bash
+git clone https://github.com/Volodymyr0587/bash-time-converter.git
+cd bash-time-converter
+```
 
-2. Make the script executable
-   `chmod +x timeconvert`
+### 2. Make the script executable
 
-3. (Optional) Install system-wide
+```bash
+chmod +x timeconvert
+```
 
-To use timeconvert from anywhere on your system:
+### 3. (Optional) Install system-wide
 
-`sudo mv timeconvert /usr/local/bin/`
+To run `timeconvert` from anywhere on your system:
 
-Now you can run it globally:
+```bash
+sudo install -m 755 timeconvert /usr/local/bin/timeconvert
+```
 
-`timeconvert`
+Now you can run:
 
-## 🕹 Usage
+```bash
+timeconvert --help
+```
 
-Just run:
+## 🕹️ Usage
 
-`./timeconvert`
+```bash
+timeconvert [OPTIONS] <TIME>
+```
 
-or (if installed globally):
+### Input formats
 
-`timeconvert`
+`timeconvert` supports four input formats.
 
-You will be prompted:
+**1. Seconds**
 
-`Enter seconds OR H:M:S:`
+```bash
+timeconvert 3661
+```
 
-✔ Example 1: Convert seconds → H:M:S
-`Enter seconds OR H:M:S: 3661`
-`01:01:01`
+Output:
 
-✔ Example 2: Convert H:M:S → seconds
-`Enter seconds OR H:M:S: 01:30:45`
-`5445`
+```text
+01:01:01
+```
 
-## 🔍 Input rules
+**2. Hours:Minutes:Seconds (`H:M:S`)**
 
-**Valid seconds format:**
-`12345`
+```bash
+timeconvert 01:01:01
+```
 
-- Must be digits only
+Output:
 
-- No negative numbers
+```text
+3661
+```
 
-- No letters or symbols
+**3. Minutes:Seconds (`M:S`)**
 
-**Valid H:M:S format:**
-`01:23:45`
+```bash
+timeconvert 12:30
+```
 
-**Rules:**
+Output:
 
-- Hours: any number
+```text
+750
+```
 
-- Minutes: 00–59
+**4. Human-readable duration**
 
-- Seconds: 00–59
+```bash
+timeconvert "1d 2h 3m 4s"
+```
 
-**Invalid examples:**
+Output:
 
-- `❌` 1:2:3
-- `❌` 01:99:10
-- `❌` hello
+```text
+93784
+```
 
-The script will show an error:
+Human-readable input can also be provided without spaces:
 
-Error: format must be H:M:S (e.g., 01:23:45)
+```bash
+timeconvert 1d2h30m
+```
 
-## 🛠 How the script works
+## 🎨 Output formats
 
-Detects whether input is seconds or H:M:S
+Use `-f` or `--format` to choose the output format.
 
-Converts accordingly
+### Clock format
 
-Prints result in standard time format (HH:MM:SS)
+Displays the duration as `HH:MM:SS`.
 
-Validates all inputs before processing
+```bash
+timeconvert --format clock 93784
+```
+
+Output:
+
+```text
+26:03:04
+```
+
+Hours are not limited to 24.
+
+### Human format
+
+Displays all non-zero time units.
+
+```bash
+timeconvert -f human 93784
+```
+
+Output:
+
+```text
+1d 2h 3m 4s
+```
+
+### Short format
+
+Displays up to three largest non-zero time units.
+
+```bash
+timeconvert -f short 93784
+```
+
+Output:
+
+```text
+1d 2h 3m
+```
+
+For zero seconds, both `human` and `short` formats return `0s`.
+
+## ⚙️ Command-line options
+
+| Option      | Long option       | Description                 |
+| ----------- | ----------------- | --------------------------- |
+| `-h`        | `--help`          | Display help information    |
+| `-v`        | `--version`       | Display version information |
+| `-f FORMAT` | `--format FORMAT` | Specify output format       |
+
+Available output formats:
+
+- `clock` — `HH:MM:SS`
+- `human` — `1d 2h 3m 4s`
+- `short` — up to three largest units
+
+### Examples
+
+```bash
+# Display help
+timeconvert --help
+
+# Display version
+timeconvert --version
+
+# Convert seconds to human-readable format
+timeconvert -f human 3661
+
+# Convert seconds to short format
+timeconvert --format=short 93784
+
+# Convert H:M:S to clock format
+timeconvert -f clock 01:30:45
+```
+
+## 🔍 Input validation
+
+### Seconds
+
+```text
+3661
+```
+
+- Digits only
+- No negative values
+- No fractional seconds
+
+### H:M:S
+
+```text
+01:23:45
+```
+
+- Hours: any non-negative integer
+- Minutes: `00–59`
+- Seconds: `00–59`
+
+### M:S
+
+```text
+12:30
+```
+
+- Minutes: any non-negative integer
+- Seconds: `00–59`
+
+### Human-readable format
+
+```text
+1d 2h 3m 4s
+```
+
+Supported units:
+
+| Unit | Description | Example |
+| ---- | ----------- | ------- |
+| `d`  | Days        | `1d`    |
+| `h`  | Hours       | `2h`    |
+| `m`  | Minutes     | `30m`   |
+| `s`  | Seconds     | `15s`   |
+
+Rules:
+
+- Units can appear in any order.
+- Spaces between values are optional.
+- Each unit can appear only once.
+- Values must be non-negative integers.
+- Unknown characters and units are not allowed.
+- Maximum supported duration: `999999999999` seconds.
+
+### Invalid examples
+
+```text
+01:99:10
+1h 2h
+1x 30m
+-100
+hello
+```
+
+Invalid input produces an error message and exits with a non-zero status.
+
+## 🛠️ How it works
+
+1. Parses command-line options.
+2. Detects the input format.
+3. Validates the input.
+4. Converts the input into seconds.
+5. Applies the requested output format.
+6. Prints the result.
+
+If no output format is specified:
+
+- Seconds input produces `HH:MM:SS`.
+- `H:M:S`, `M:S`, and human-readable input produce total seconds.
+
+## 🧪 Testing
+
+Automated tests are written using [Bats](https://github.com/bats-core/bats-core).
+
+Run the test suite from the project directory:
+
+```bash
+bats tests/
+```
+
+Or run a specific test file:
+
+```bash
+bats tests/timeconvert.bats
+```
+
+## 📋 Requirements
+
+- Bash 4.0 or newer
+- Linux or another Unix-like system
+
+Bats is required only for running automated tests.
 
 ## 🤝 Contributing
 
-Feel free to open issues or submit pull requests with improvements!
+Contributions, bug reports, and suggestions are welcome!
+
+Feel free to open an issue or submit a pull request.
+
+## 📄 License
+
+See the [LICENSE](LICENSE) file for license information.
