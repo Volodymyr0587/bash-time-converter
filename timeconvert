@@ -1,39 +1,375 @@
+
 #!/usr/bin/env bash
 
+VERSION="1.1.0"
+MAX_SECONDS=999999999999
+
 show_help() {
-cat << EOF
-timeconvert — Convert time formats
+    cat << EOF
+timeconvert $VERSION
+Convert between seconds and time formats.
 
 Usage:
-  timeconvert [OPTIONS] <time>
+  timeconvert [OPTIONS] <TIME>
 
-Formats supported:
-  seconds        3661
-  H:M:S          01:01:01
-  M:S            12:30
-  human          1h 2m 3s
+Input formats:
+  SECONDS       3661
+  H:M:S         01:01:01
+  M:S           12:30
+  HUMAN         "1d 2h 3m 4s"
+
+Supported units:
+  d             Days
+  h             Hours
+  m             Minutes
+  s             Seconds
+
+Options:
+  -h, --help             Show this help
+  -v, --version          Show version information
+  -f, --format FORMAT    Set output format:
+                         clock  HH:MM:SS
+                         human  1d 2h 3m 4s
+                         short  Up to 3 largest units
 
 Examples:
   timeconvert 3661
   timeconvert 01:01:01
   timeconvert 12:30
   timeconvert "1h 2m 3s"
+  timeconvert "1d 2h 30m"
+  timeconvert -f human 3661
+  timeconvert --format=short 93784
 
-Options:
-  -h        Show this help
+Notes:
+  - Options must appear before the time argument.
+  - Human-readable input can contain spaces.
+  - Human-readable units can be supplied in any order.
+  - Each unit may appear only once.
+  - Negative values and fractional seconds are not supported.
+  - Maximum supported duration: $MAX_SECONDS seconds.
 EOF
 }
 
-# --- option parsing ---
+show_version() {
+    printf 'timeconvert %s\n' "$VERSION"
+    printf 'Convert between seconds and time formats.\n'
+}
 
-while getopts ":h" opt; do
+error() {
+    printf 'Error: %s\n' "$1" >&2
+}
+
+# Convert a digit string to a decimal integer.
+# Leading zeros are removed to avoid Bash octal interpretation.
+decimal_value() {
+    local value=$1
+
+    if [[ ! $value =~ ^[0-9]+$ ]]; then
+        return 1
+    fi
+
+    while [[ ${#value} -gt 1 && $value == 0* ]]; do
+        value=${value#0}
+    done
+
+    # Keep arithmetic safely within the supported range.
+    if (( ${#value} > 12 )); then
+        return 1
+    fi
+
+    REPLY=$((10#$value))
+}
+
+# Add a time component to total_seconds.
+# The multiplication and addition are checked before arithmetic.
+add_component() {
+    local raw_value=$1
+    local multiplier=$2
+    local value
+
+    if ! decimal_value "$raw_value"; then
+        return 1
+    fi
+
+    value=$REPLY
+
+    if (( value > (MAX_SECONDS - total_seconds) / multiplier )); then
+        return 1
+    fi
+
+    total_seconds=$((total_seconds + value * multiplier))
+}
+
+# Convert seconds to HH:MM:SS.
+seconds_to_clock() {
+    local seconds=$1
+
+    printf '%02d:%02d:%02d\n' \
+        "$((seconds / 3600))" \
+        "$(((seconds % 3600) / 60))" \
+        "$((seconds % 60))"
+}
+
+# Convert seconds to a human-readable format.
+seconds_to_human() {
+    local remaining=$1
+    local days hours minutes seconds
+    local -a parts=()
+
+    days=$((remaining / 86400))
+    remaining=$((remaining % 86400))
+
+    hours=$((remaining / 3600))
+    remaining=$((remaining % 3600))
+
+    minutes=$((remaining / 60))
+    seconds=$((remaining % 60))
+
+    (( days > 0 )) && parts+=("${days}d")
+    (( hours > 0 )) && parts+=("${hours}h")
+    (( minutes > 0 )) && parts+=("${minutes}m")
+    (( seconds > 0 )) && parts+=("${seconds}s")
+
+    if (( ${#parts[@]} == 0 )); then
+        printf '0s\n'
+    else
+        printf '%s\n' "${parts[*]}"
+    fi
+}
+
+# Convert seconds to a compact format with at most 3 units.
+seconds_to_short() {
+    local remaining=$1
+    local days hours minutes seconds
+    local count=0
+    local -a parts=()
+
+    days=$((remaining / 86400))
+    remaining=$((remaining % 86400))
+
+    hours=$((remaining / 3600))
+    remaining=$((remaining % 3600))
+
+    minutes=$((remaining / 60))
+    seconds=$((remaining % 60))
+
+    if (( days > 0 )); then
+        parts+=("${days}d")
+        ((count += 1))
+    fi
+
+    if (( hours > 0 && count < 3 )); then
+        parts+=("${hours}h")
+        ((count += 1))
+    fi
+
+    if (( minutes > 0 && count < 3 )); then
+        parts+=("${minutes}m")
+        ((count += 1))
+    fi
+
+    if (( seconds > 0 && count < 3 )); then
+        parts+=("${seconds}s")
+        ((count += 1))
+    fi
+
+    if (( ${#parts[@]} == 0 )); then
+        printf '0s\n'
+    else
+        printf '%s\n' "${parts[*]}"
+    fi
+}
+
+# Parse human-readable input, e.g. "1d 2h 30m".
+parse_human() {
+    local remaining=$1
+    local value unit multiplier
+
+    local -A seen_units=(
+        [d]=0
+        [h]=0
+        [m]=0
+        [s]=0
+    )
+
+    # Remove whitespace so both "1d 2h" and "1d2h" work.
+    remaining=${remaining//[[:space:]]/}
+
+    if [[ -z $remaining ]]; then
+        return 1
+    fi
+
+    total_seconds=0
+
+    while [[ -n $remaining ]]; do
+        if [[ ! $remaining =~ ^([0-9]+)([dhms])(.*)$ ]]; then
+            return 1
+        fi
+
+        value=${BASH_REMATCH[1]}
+        unit=${BASH_REMATCH[2]}
+        remaining=${BASH_REMATCH[3]}
+
+        if (( seen_units[$unit] )); then
+            return 1
+        fi
+
+        seen_units[$unit]=1
+
+        case $unit in
+            d) multiplier=86400 ;;
+            h) multiplier=3600 ;;
+            m) multiplier=60 ;;
+            s) multiplier=1 ;;
+        esac
+
+        if ! add_component "$value" "$multiplier"; then
+            return 1
+        fi
+    done
+}
+
+# Parse the input and convert it to seconds.
+parse_time() {
+    local input=$1
+    local hours minutes seconds
+
+    total_seconds=0
+    input_type="time"
+
+    # Seconds: 3661
+    if [[ $input =~ ^[0-9]+$ ]]; then
+        input_type="seconds"
+
+        if ! add_component "$input" 1; then
+            return 1
+        fi
+
+    # H:M:S: 01:01:01
+    elif [[ $input =~ ^([0-9]+):([0-9]{2}):([0-9]{2})$ ]]; then
+        hours=${BASH_REMATCH[1]}
+        minutes=${BASH_REMATCH[2]}
+        seconds=${BASH_REMATCH[3]}
+
+        if ! decimal_value "$minutes"; then
+            return 1
+        fi
+        (( REPLY <= 59 )) || return 1
+
+        if ! decimal_value "$seconds"; then
+            return 1
+        fi
+        (( REPLY <= 59 )) || return 1
+
+        if ! add_component "$hours" 3600; then
+            return 1
+        fi
+
+        if ! add_component "$minutes" 60; then
+            return 1
+        fi
+
+        if ! add_component "$seconds" 1; then
+            return 1
+        fi
+
+    # M:S: 12:30
+    elif [[ $input =~ ^([0-9]+):([0-9]{2})$ ]]; then
+        minutes=${BASH_REMATCH[1]}
+        seconds=${BASH_REMATCH[2]}
+
+        if ! decimal_value "$seconds"; then
+            return 1
+        fi
+        (( REPLY <= 59 )) || return 1
+
+        if ! add_component "$minutes" 60; then
+            return 1
+        fi
+
+        if ! add_component "$seconds" 1; then
+            return 1
+        fi
+
+    # Human-readable: 1d 2h 3m 4s
+    else
+        input_type="time"
+
+        if ! parse_human "$input"; then
+            return 1
+        fi
+    fi
+}
+
+# --- Normalize long options for getopts ---
+
+normalized_args=()
+
+while (($#)); do
+    case $1 in
+        --help)
+            normalized_args+=("-h")
+            shift
+            ;;
+        --version)
+            normalized_args+=("-v")
+            shift
+            ;;
+        --format)
+            if [[ -z ${2-} ]]; then
+                error "Option --format requires a value."
+                exit 1
+            fi
+
+            normalized_args+=("-f" "$2")
+            shift 2
+            ;;
+        --format=*)
+            normalized_args+=("-f" "${1#*=}")
+            shift
+            ;;
+        --)
+            normalized_args+=("--")
+            shift
+            normalized_args+=("$@")
+            break
+            ;;
+        *)
+            normalized_args+=("$1")
+            shift
+            ;;
+    esac
+done
+
+set -- "${normalized_args[@]}"
+
+# --- Option parsing ---
+
+output_format=""
+
+OPTIND=1
+
+while getopts ":hvf:" opt; do
     case $opt in
         h)
             show_help
             exit 0
             ;;
+        v)
+            show_version
+            exit 0
+            ;;
+        f)
+            output_format=$OPTARG
+            ;;
+        :)
+            error "Option -$OPTARG requires a value."
+            exit 1
+            ;;
         \?)
-            echo "Unknown option: -$OPTARG" >&2
+            error "Unknown option: -$OPTARG"
+            printf "Run 'timeconvert --help' for usage.\n" >&2
             exit 1
             ;;
     esac
@@ -41,75 +377,61 @@ done
 
 shift $((OPTIND - 1))
 
-# long option support
-if [[ "$1" == "--help" ]]; then
+# --- Argument validation ---
+
+if (($# == 0)); then
     show_help
     exit 0
 fi
 
-# --- argument check ---
-
-if [[ $# -eq 0 ]]; then
-    show_help
-    exit 0
-fi
-
+# Join remaining arguments to support unquoted human-readable input.
 input="$*"
 
-# --- conversion functions ---
+# --- Output format validation ---
 
-sec_to_hms() {
-    local sec=$1
-    printf "%02d:%02d:%02d\n" \
-        $((sec/3600)) \
-        $(((sec%3600)/60)) \
-        $((sec%60))
-}
+if [[ -n $output_format ]]; then
+    case $output_format in
+        clock|human|short)
+            ;;
+        *)
+            error "Invalid output format: $output_format"
+            printf 'Supported formats: clock, human, short.\n' >&2
+            exit 1
+            ;;
+    esac
+fi
 
-hms_to_sec() {
-    IFS=':' read -r h m s <<< "$1"
-    echo $((h*3600 + m*60 + s))
-}
+# --- Parse input ---
 
-ms_to_sec() {
-    IFS=':' read -r m s <<< "$1"
-    echo $((m*60 + s))
-}
-
-human_to_sec() {
-    local total=0
-
-    if [[ "$input" =~ ([0-9]+)h ]]; then
-        total=$(( total + ${BASH_REMATCH[1]} * 3600 ))
-    fi
-
-    if [[ "$input" =~ ([0-9]+)m ]]; then
-        total=$(( total + ${BASH_REMATCH[1]} * 60 ))
-    fi
-
-    if [[ "$input" =~ ([0-9]+)s ]]; then
-        total=$(( total + ${BASH_REMATCH[1]} ))
-    fi
-
-    echo "$total"
-}
-
-# --- format detection ---
-
-if [[ "$input" =~ ^[0-9]+$ ]]; then
-    sec_to_hms "$input"
-
-elif [[ "$input" =~ ^[0-9]+:[0-9]{2}:[0-9]{2}$ ]]; then
-    hms_to_sec "$input"
-
-elif [[ "$input" =~ ^[0-9]+:[0-9]{2}$ ]]; then
-    ms_to_sec "$input"
-
-elif [[ "$input" =~ [0-9]+h|[0-9]+m|[0-9]+s ]]; then
-    human_to_sec
-
-else
-    echo "Invalid format." >&2
-    echo "Run 'timeconvert --help' for usage." >&2
+if ! parse_time "$input"; then
+    error "Invalid time value or value out of supported range: $input"
+    printf "Run 'timeconvert --help' for usage.\n" >&2
     exit 1
 fi
+
+# --- Select output format ---
+
+if [[ -z $output_format ]]; then
+    if [[ $input_type == "seconds" ]]; then
+        output_format="clock"
+    else
+        output_format="seconds"
+    fi
+fi
+
+# --- Display result ---
+
+case $output_format in
+    seconds)
+        printf '%s\n' "$total_seconds"
+        ;;
+    clock)
+        seconds_to_clock "$total_seconds"
+        ;;
+    human)
+        seconds_to_human "$total_seconds"
+        ;;
+    short)
+        seconds_to_short "$total_seconds"
+        ;;
+esac
